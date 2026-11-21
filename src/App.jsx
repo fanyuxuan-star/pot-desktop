@@ -2,17 +2,21 @@ import { appWindow } from '@tauri-apps/api/window';
 import { BrowserRouter } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { warn } from 'tauri-plugin-log-api';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useTheme } from 'next-themes';
 
 import { invoke } from '@tauri-apps/api/tauri';
-import Screenshot from './window/Screenshot';
+import React, { Suspense, lazy } from 'react';
 import Translate from './window/Translate';
-import Recognize from './window/Recognize';
-import Updater from './window/Updater';
 import { store } from './utils/store';
-import Config from './window/Config';
 import { useConfig } from './hooks';
+
+// 翻译窗口是最常出现的，保持同步加载；其余窗口按需加载，
+// 避免每次划词都去解析配置页、识别页和 OCR 服务。
+const Config = lazy(() => import('./window/Config'));
+const Recognize = lazy(() => import('./window/Recognize'));
+const Screenshot = lazy(() => import('./window/Screenshot'));
+const Updater = lazy(() => import('./window/Updater'));
 import './style.css';
 import './i18n';
 
@@ -113,5 +117,9 @@ export default function App() {
         }
     }, [appFont, appFallbackFont, appFontSize]);
 
-    return <BrowserRouter>{windowMap[appWindow.label]}</BrowserRouter>;
+    return (
+        <BrowserRouter>
+            <Suspense fallback={null}>{windowMap[appWindow.label]}</Suspense>
+        </BrowserRouter>
+    );
 }

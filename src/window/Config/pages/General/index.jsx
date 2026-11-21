@@ -22,6 +22,7 @@ import { useToastStyle } from '../../../../hooks';
 import { osType } from '../../../../utils/env';
 
 let timer = null;
+let proxyApplyTimer = null;
 
 export default function General() {
     const [autoStart, setAutoStart] = useState(false);
@@ -42,9 +43,62 @@ export default function General() {
     const [proxyUsername, setProxyUsername] = useConfig('proxy_username', '');
     const [proxyPassword, setProxyPassword] = useConfig('proxy_password', '');
     const [noProxy, setNoProxy] = useConfig('no_proxy', 'localhost,127.0.0.1');
+    const [proxyBypass, setProxyBypass] = useConfig(
+        'proxy_bypass',
+        'localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
+    );
+    const [proxyTestUrl, setProxyTestUrl] = useConfig('proxy_test_url', '');
+    const [proxyTestResult, setProxyTestResult] = useState(null);
+    const [proxyTesting, setProxyTesting] = useState(false);
     const { t, i18n } = useTranslation();
     const { setTheme } = useTheme();
     const toastStyle = useToastStyle();
+
+    // 配置写入 store 有 500ms 防抖，稍等再让后端重新应用代理设置
+    const applyProxy = () => {
+        if (proxyApplyTimer) {
+            clearTimeout(proxyApplyTimer);
+        }
+        proxyApplyTimer = setTimeout(() => {
+            invoke('apply_proxy_settings').catch(() => {});
+        }, 800);
+    };
+
+    const runProxyTest = async () => {
+        if (!proxyTestUrl) {
+            toast.error(t('config.general.proxy.test_url_empty'), { duration: 3000, style: toastStyle });
+            return;
+        }
+        setProxyTesting(true);
+        setProxyTestResult(null);
+        try {
+            const result = await invoke('proxy_test', { url: proxyTestUrl });
+            setProxyTestResult(result);
+        } catch (e) {
+            setProxyTestResult({ error: String(e) });
+        } finally {
+            setProxyTesting(false);
+        }
+    };
+
+    const proxyTestText = (result) => {
+        if (!result || result.error) {
+            return {
+                text: result && result.error ? String(result.error) : '',
+                color: 'text-danger',
+            };
+        }
+        switch (result.verdict) {
+            case 'bypass':
+                return { text: t('config.general.proxy.test_bypass'), color: 'text-success' };
+            case 'intercepted':
+                return { text: t('config.general.proxy.test_intercepted'), color: 'text-danger' };
+            case 'proxy_only':
+                return { text: t('config.general.proxy.test_proxy_only'), color: 'text-warning' };
+            default:
+                return { text: t('config.general.proxy.test_unreachable'), color: 'text-danger' };
+        }
+    };
 
     const languageName = {
         zh_cn: '简体中文',
@@ -514,6 +568,7 @@ export default function General() {
                                     } else {
                                         setProxyEnable(v);
                                     }
+                                    applyProxy();
                                     toast.success(t('config.general.proxy_change'), {
                                         duration: 1000,
                                         style: toastStyle,
@@ -593,10 +648,62 @@ export default function General() {
                                 value={noProxy}
                                 onValueChange={(v) => {
                                     setNoProxy(v);
+                                    applyProxy();
                                 }}
                             />
                         )}
                     </div>
+                    <div className='config-item'>
+                        {proxyBypass !== null && (
+                            <Input
+                                variant='bordered'
+                                label={t('config.general.proxy.bypass')}
+                                description={t('config.general.proxy.bypass_tip')}
+                                value={proxyBypass}
+                                onValueChange={(v) => {
+                                    setProxyBypass(v);
+                                    applyProxy();
+                                }}
+                            />
+                        )}
+                    </div>
+                    <div className='config-item'>
+                        {proxyTestUrl !== null && (
+                            <Input
+                                variant='bordered'
+                                label={t('config.general.proxy.test_url')}
+                                placeholder='http://10.200.8.204:9090/v1/models'
+                                value={proxyTestUrl}
+                                onValueChange={(v) => {
+                                    setProxyTestUrl(v);
+                                }}
+                                className='mr-2'
+                            />
+                        )}
+                        <Button
+                            color='primary'
+                            variant='flat'
+                            isLoading={proxyTesting}
+                            onPress={runProxyTest}
+                        >
+                            {t('config.general.proxy.test')}
+                        </Button>
+                    </div>
+                    {proxyTestResult !== null && (
+                        <div className='proxy-test-result'>
+                            <p className={proxyTestText(proxyTestResult).color}>
+                                {proxyTestText(proxyTestResult).text}
+                            </p>
+                            {!proxyTestResult.error && (
+                                <p className='text-small text-default-500'>
+                                    {t('config.general.proxy.test_detail', {
+                                        direct: `${proxyTestResult.direct_status ?? '—'} / ${proxyTestResult.direct_ms}ms`,
+                                        routed: `${proxyTestResult.routed_status ?? '—'} / ${proxyTestResult.routed_ms}ms`,
+                                    })}
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </CardBody>
             </Card>
         </>

@@ -2,9 +2,19 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
+// 浏览器预览模式（`pnpm dev:web`）：把 Tauri 相关模块替换成本地 mock，
+// 这样不带 Rust/WebView 也能在浏览器里调 UI。正常 tauri dev/build 不受影响。
+const previewAlias = [
+    { find: /^@tauri-apps\/api(\/.*)?$/, replacement: resolve(__dirname, 'src/dev/mock-tauri.js') },
+    { find: /^tauri-plugin-[\w-]+-api$/, replacement: resolve(__dirname, 'src/dev/mock-tauri.js') },
+];
+
 // https://vitejs.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig(async ({ mode }) => ({
     plugins: [react()],
+    resolve: {
+        alias: mode === 'preview' ? previewAlias : [],
+    },
 
     // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
     // prevent vite from obscuring rust errors

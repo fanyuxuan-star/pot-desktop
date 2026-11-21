@@ -3,3 +3,11 @@
     display: flex;
     justify-content: space-between;
 }
+
+.proxy-test-result {
+    margin: 4px 0 10px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}

@@ -8,6 +8,7 @@ mod config;
 mod error;
 mod hotkey;
 mod lang_detect;
+mod proxy;
 mod screenshot;
 mod server;
 mod system_ocr;
@@ -22,6 +23,7 @@ use config::*;
 use hotkey::*;
 use lang_detect::*;
 use log::info;
+use proxy::*;
 use once_cell::sync::OnceCell;
 use screenshot::screenshot;
 use server::*;
@@ -78,6 +80,8 @@ fn main() {
             // Init Config
             info!("Init Config Store");
             init_config(app);
+            // 内网直连：把私网段写进 NO_PROXY，必须在任何 HTTP 请求之前执行
+            apply_no_proxy();
             // Check First Run
             if is_first_run() {
                 // Open Config Window
@@ -136,6 +140,8 @@ fn main() {
             system_ocr,
             set_proxy,
             unset_proxy,
+            apply_proxy_settings,
+            proxy_test,
             run_binary,
             open_devtools,
             register_shortcut_by_frontend,

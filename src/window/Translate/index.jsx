@@ -1,14 +1,17 @@
 import { readDir, BaseDirectory, readTextFile, exists } from '@tauri-apps/api/fs';
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
-import { appWindow, currentMonitor } from '@tauri-apps/api/window';
+import { appWindow, currentMonitor, LogicalSize, PhysicalPosition } from '@tauri-apps/api/window';
 import { appConfigDir, join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
-import { Spacer, Button } from '@nextui-org/react';
+import { Spacer, Button, Tooltip } from '@nextui-org/react';
 import { AiFillCloseCircle } from 'react-icons/ai';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { BsPinFill } from 'react-icons/bs';
+import { MdHistory } from 'react-icons/md';
+import { useTranslation } from 'react-i18next';
 
+import HistoryPanel from './components/HistoryPanel';
 import LanguageArea from './components/LanguageArea';
 import SourceArea from './components/SourceArea';
 import TargetArea from './components/TargetArea';
@@ -16,6 +19,10 @@ import { osType } from '../../utils/env';
 import { useConfig } from '../../hooks';
 import { store } from '../../utils/store';
 import { info } from 'tauri-plugin-log-api';
+
+// 历史面板宽度（与 HistoryPanel 的 w-[264px] 保持一致）
+const HISTORY_PANEL_WIDTH = 264;
+const MIN_WINDOW_WIDTH = 300;
 
 let blurTimeout = null;
 let resizeTimeout = null;
@@ -81,6 +88,9 @@ export default function Translate() {
     const [collectionServiceInstanceList] = useConfig('collection_service_list', []);
     const [hideLanguage] = useConfig('hide_language', false);
     const [pined, setPined] = useState(false);
+    const [historyOpen, setHistoryOpen] = useConfig('translate_history_open', false);
+    const historyBaseWidth = useRef(null);
+    const { t } = useTranslation();
     const [pluginList, setPluginList] = useState(null);
     const [serviceInstanceConfigMap, setServiceInstanceConfigMap] = useState(null);
     const reorder = (list, startIndex, endIndex) => {
@@ -228,6 +238,58 @@ export default function Translate() {
         collectionServiceInstanceList,
     ]);
 
+    // 打开/关闭历史面板：同时扩宽窗口，并把宽度写回配置，
+    // 这样 Rust 下次划词重建窗口尺寸时不会把面板挤回去。
+    const toggleHistoryPanel = async () => {
+        const next = !historyOpen;
+        try {
+            if (appWindow.label === 'translate') {
+                const factor = (await appWindow.scaleFactor?.()) || 1;
+                const size = await appWindow.outerSize();
+                const width = Math.round(size.width / factor);
+                const height = Math.round(size.height / factor);
+
+                let targetWidth;
+                if (next) {
+                    historyBaseWidth.current = width;
+                    const monitor = await currentMonitor().catch(() => null);
+                    const monitorWidth = monitor?.size?.width
+                        ? Math.round(monitor.size.width / (monitor.scaleFactor || 1))
+                        : width + HISTORY_PANEL_WIDTH;
+                    targetWidth = Math.min(width + HISTORY_PANEL_WIDTH, Math.max(monitorWidth - 24, MIN_WINDOW_WIDTH));
+                } else {
+                    targetWidth = historyBaseWidth.current ?? Math.max(width - HISTORY_PANEL_WIDTH, MIN_WINDOW_WIDTH);
+                    historyBaseWidth.current = null;
+                }
+
+                if (targetWidth !== width) {
+                    await appWindow.setSize(new LogicalSize(targetWidth, height));
+                }
+
+                // 窗口贴近屏幕右边缘时向左挪一点，避免展开后超出屏幕
+                if (next) {
+                    const monitor = await currentMonitor().catch(() => null);
+                    const position = await appWindow.outerPosition();
+                    if (monitor?.size?.width && position) {
+                        const monitorRight = monitor.position.x + monitor.size.width;
+                        const overflow = position.x + targetWidth * factor - monitorRight;
+                        if (overflow > 0) {
+                            await appWindow.setPosition(
+                                new PhysicalPosition(Math.max(monitor.position.x, position.x - overflow), position.y)
+                            );
+                        }
+                    }
+                }
+
+                await store.set('translate_window_width', targetWidth);
+                await store.save();
+            }
+        } catch (error) {
+            info(`Toggle history panel failed: ${error}`);
+        }
+        setHistoryOpen(next);
+    };
+
     return (
         pluginList && (
             <div
@@ -239,43 +301,85 @@ export default function Translate() {
                     className='fixed top-[5px] left-[5px] right-[5px] h-[30px]'
                     data-tauri-drag-region='true'
                 />
-                <div className={`h-[35px] w-full flex ${osType === 'Darwin' ? 'justify-end' : 'justify-between'}`}>
-                    <Button
-                        isIconOnly
-                        size='sm'
-                        variant='flat'
-                        disableAnimation
-                        className='my-auto bg-transparent'
-                        onPress={() => {
-                            if (pined) {
-                                if (closeOnBlur) {
-                                    unlisten = listenBlur();
-                                }
-                                appWindow.setAlwaysOnTop(false);
-                            } else {
-                                unlistenBlur();
-                                appWindow.setAlwaysOnTop(true);
-                            }
-                            setPined(!pined);
-                        }}
+                <div className='h-[35px] w-full flex justify-between'>
+                    <div className='flex'>
+                        <Tooltip
+                            content={pined ? t('translate.unpin') : t('translate.pin')}
+                            placement='bottom'
+                            delay={400}
+                            closeDelay={0}
+                        >
+                            <Button
+                                isIconOnly
+                                size='sm'
+                                variant='flat'
+                                disableAnimation
+                                aria-label={pined ? t('translate.unpin') : t('translate.pin')}
+                                className='my-auto bg-transparent'
+                                onPress={() => {
+                                    if (pined) {
+                                        if (closeOnBlur) {
+                                            unlisten = listenBlur();
+                                        }
+                                        appWindow.setAlwaysOnTop(false);
+                                    } else {
+                                        unlistenBlur();
+                                        appWindow.setAlwaysOnTop(true);
+                                    }
+                                    setPined(!pined);
+                                }}
+                            >
+                                <BsPinFill className={`text-[20px] ${pined ? 'text-primary' : 'text-default-400'}`} />
+                            </Button>
+                        </Tooltip>
+                        <Tooltip
+                            content={t('translate.history.title')}
+                            placement='bottom'
+                            delay={400}
+                            closeDelay={0}
+                        >
+                            <Button
+                                isIconOnly
+                                size='sm'
+                                variant='flat'
+                                disableAnimation
+                                aria-label={t('translate.history.title')}
+                                className='my-auto bg-transparent'
+                                onPress={toggleHistoryPanel}
+                            >
+                                <MdHistory
+                                    className={`text-[20px] ${historyOpen ? 'text-primary' : 'text-default-400'}`}
+                                />
+                            </Button>
+                        </Tooltip>
+                    </div>
+                    <Tooltip
+                        content={t('translate.close')}
+                        placement='bottom'
+                        delay={400}
+                        closeDelay={0}
                     >
-                        <BsPinFill className={`text-[20px] ${pined ? 'text-primary' : 'text-default-400'}`} />
-                    </Button>
-                    <Button
-                        isIconOnly
-                        size='sm'
-                        variant='flat'
-                        disableAnimation
-                        className={`my-auto ${osType === 'Darwin' && 'hidden'} bg-transparent`}
-                        onPress={() => {
-                            void appWindow.close();
-                        }}
-                    >
-                        <AiFillCloseCircle className='text-[20px] text-default-400' />
-                    </Button>
+                        <Button
+                            isIconOnly
+                            size='sm'
+                            variant='flat'
+                            disableAnimation
+                            aria-label={t('translate.close')}
+                            className={`my-auto ${osType === 'Darwin' && 'hidden'} bg-transparent`}
+                            onPress={() => {
+                                void appWindow.close();
+                            }}
+                        >
+                            <AiFillCloseCircle className='text-[20px] text-default-400' />
+                        </Button>
+                    </Tooltip>
                 </div>
-                <div className={`${osType === 'Linux' ? 'h-[calc(100vh-37px)]' : 'h-[calc(100vh-35px)]'} px-[8px]`}>
-                    <div className='h-full overflow-y-auto'>
+                <div
+                    className={`${
+                        osType === 'Linux' ? 'h-[calc(100vh-37px)]' : 'h-[calc(100vh-35px)]'
+                    } px-[8px] flex gap-2`}
+                >
+                    <div className='flex-1 min-w-0 h-full overflow-y-auto'>
                         <div>
                             {serviceInstanceConfigMap !== null && (
                                 <SourceArea
@@ -284,7 +388,7 @@ export default function Translate() {
                                 />
                             )}
                         </div>
-                        <div className={`${hideLanguage && 'hidden'}`}>
+                        <div className={`${hideLanguage ? 'hidden' : 'sticky top-0 z-10 bg-background'}`}>
                             <LanguageArea />
                             <Spacer y={2} />
                         </div>
@@ -338,6 +442,7 @@ export default function Translate() {
                             </Droppable>
                         </DragDropContext>
                     </div>
+                    {historyOpen && <HistoryPanel onClose={toggleHistoryPanel} />}
                 </div>
             </div>
         )

@@ -78,9 +78,19 @@
                     "port": "代理端口",
                     "username": "用户名",
                     "password": "密码",
-                    "no_proxy": "不使用代理的地址或IP"
+                    "no_proxy": "不使用代理的地址或IP",
+                    "bypass": "内网直连（绕过代理）",
+                    "bypass_tip": "逗号分隔的主机、域名或 CIDR，默认已包含本机地址与内网网段（10.0.0.0/8 等）。",
+                    "test": "测试",
+                    "test_url": "测试地址",
+                    "test_url_empty": "请先填写测试地址",
+                    "test_bypass": "直连正常（已绕过代理）",
+                    "test_intercepted": "请求被代理拦截 —— 请把该地址加入绕过列表",
+                    "test_proxy_only": "只有走代理才能访问",
+                    "test_unreachable": "本机无法访问该地址",
+                    "test_detail": "直连：{{direct}} · 代理路径：{{routed}}"
                 },
-                "proxy_change": "代理已经改变，重启应用生效",
+                "proxy_change": "代理设置已更新",
                 "proxy_error": "请填写代理地址和端口",
                 "tray_click_event": "托盘点击事件",
                 "event": {
@@ -458,7 +468,21 @@
             "copy": "复制",
             "retry": "重试",
             "delete_newline": "删除换行",
-            "translate_back": "翻译回原文"
+            "translate_back": "翻译回原文",
+            "pin": "置顶",
+            "unpin": "取消置顶",
+            "close": "关闭",
+            "history": {
+                "title": "历史记录",
+                "empty": "还没有翻译记录",
+                "expand": "展开",
+                "collapse": "收起",
+                "close": "关闭",
+                "just_now": "刚刚",
+                "minutes_ago": "{{count}} 分钟前",
+                "hours_ago": "{{count}} 小时前",
+                "error": "历史记录读取失败"
+            }
         },
         "recognize": {
             "recognize": "重新识别",

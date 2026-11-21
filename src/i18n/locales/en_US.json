@@ -78,9 +78,19 @@
                     "port": "Port",
                     "username": "Username",
                     "password": "Password",
-                    "no_proxy": "No Proxy"
+                    "no_proxy": "No Proxy",
+                    "bypass": "Direct Hosts (Bypass Proxy)",
+                    "bypass_tip": "Comma separated hosts, domains or CIDR. Localhost and private networks are included by default.",
+                    "test": "Test",
+                    "test_url": "Test URL",
+                    "test_url_empty": "Please fill in a test URL first",
+                    "test_bypass": "Direct connection works - proxy bypassed",
+                    "test_intercepted": "Request is intercepted by the proxy - add this host to the bypass list",
+                    "test_proxy_only": "Only reachable through the proxy",
+                    "test_unreachable": "Unreachable from this machine",
+                    "test_detail": "Direct: {{direct}} · Proxy path: {{routed}}"
                 },
-                "proxy_change": "The proxy has been changed, Restart the application for the changes to take effect",
+                "proxy_change": "Proxy settings updated",
                 "proxy_error": "Please fill in the host and port",
                 "tray_click_event": "Tray Click Event",
                 "event": {
@@ -458,7 +468,21 @@
             "copy": "Copy",
             "retry": "Try again",
             "delete_newline": "Delete Newline",
-            "translate_back": "Translation back to the original"
+            "translate_back": "Translation back to the original",
+            "pin": "Pin on top",
+            "unpin": "Unpin",
+            "close": "Close",
+            "history": {
+                "title": "History",
+                "empty": "No translations yet",
+                "expand": "Expand",
+                "collapse": "Collapse",
+                "close": "Close",
+                "just_now": "just now",
+                "minutes_ago": "{{count}} min ago",
+                "hours_ago": "{{count}} h ago",
+                "error": "Failed to load history"
+            }
         },
         "recognize": {
             "recognize": "Recognize",

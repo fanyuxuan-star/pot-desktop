@@ -105,16 +105,13 @@ pub fn set_proxy() -> Result<bool, ()> {
         Some(v) => v.as_i64().unwrap(),
         None => return Err(()),
     };
-    let no_proxy = match get("no_proxy") {
-        Some(v) => v.as_str().unwrap().to_string(),
-        None => return Err(()),
-    };
     let proxy = format!("http://{}:{}", host, port);
 
     std::env::set_var("http_proxy", &proxy);
     std::env::set_var("https_proxy", &proxy);
     std::env::set_var("all_proxy", &proxy);
-    std::env::set_var("no_proxy", &no_proxy);
+    // no_proxy 统一交给 proxy::apply_no_proxy 合并「内网直连」列表后写入
+    crate::proxy::apply_no_proxy();
     Ok(true)
 }
 
@@ -124,6 +121,8 @@ pub fn unset_proxy() -> Result<bool, ()> {
     std::env::remove_var("https_proxy");
     std::env::remove_var("all_proxy");
     std::env::remove_var("no_proxy");
+    // 关闭代理后仍要保留内网直连：系统代理可能来自注册表，与这里的开关无关
+    crate::proxy::apply_no_proxy();
     Ok(true)
 }
 

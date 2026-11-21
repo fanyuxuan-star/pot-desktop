@@ -14,6 +14,7 @@ import {
 import { BiCollapseVertical, BiExpandVertical } from 'react-icons/bi';
 import { BaseDirectory, readTextFile } from '@tauri-apps/api/fs';
 import { sendNotification } from '@tauri-apps/api/notification';
+import { emit } from '@tauri-apps/api/event';
 import React, { useEffect, useState, useRef } from 'react';
 import { writeText } from '@tauri-apps/api/clipboard';
 import PulseLoader from 'react-spinners/PulseLoader';
@@ -135,6 +136,7 @@ export default function TargetArea(props) {
             .then(
                 (v) => {
                     db.close();
+                    emit('history_updated');
                 },
                 (e) => {
                     db.execute(
